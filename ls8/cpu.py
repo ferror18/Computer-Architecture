@@ -24,6 +24,7 @@ class CPU:
         self.branch_table[0b01010101] = self.JEQ
         self.branch_table[0b01010110] = self.JNE
         self.branch_table[0b01010100] = self.JMP
+        self.branch_table[0b00000000] = self.NOP
 
 
     def load(self):
@@ -67,7 +68,8 @@ class CPU:
 
     def ALU(self, reg_a, reg_b):
         """ALU operations."""
-          
+        a = self.read_reg(reg_a)
+        b = self.read_reg(reg_b) if reg_b < 7 else None
         def ADD():
             self.reg[reg_a] += self.reg[reg_b]
         def SUB():
@@ -78,8 +80,6 @@ class CPU:
             self.reg[reg_a] /= self.reg[reg_b]
         def CMP():
             self.write_ram(0xF7, 0)
-            a = self.read_reg(reg_a)
-            b = self.read_reg(reg_b)
             fl = self.ram[0xF7]
             if a < b:
                 fl |= 0b00000100
@@ -89,12 +89,33 @@ class CPU:
                 fl |= 0b00000001
             self.write_ram(0xF7,fl)
             # print('CMP:',self.read_ram(0xF7))
+        def AND():
+            self.write_reg(a&b, ramadr=self.pc+1)
+        def XOR():
+            self.write_reg(a^b, ramadr=self.pc+1)
+        def SHL():
+            self.write_reg(a<<b, ramadr=self.pc+1)
+        def OR():
+            self.write_reg(a|b, ramadr=self.pc+1)
+        def SHR():
+            self.write_reg(a>>b, ramadr=self.pc+1)
+        def NOT():
+            self.write_reg(~a, ramadr=self.pc+1)
+        def MOD():
+            self.write_reg(a%b, ramadr=self.pc+1)
         ALU_branch_table = {
             0b10100000: ADD,
             0b10100001: SUB,
             0b10100010: MULT,
             0b10100011: DIV,
-            0b10100111: CMP
+            0b10100111: CMP,
+            0b10101000: AND,
+            0b10101011: XOR,
+            0b10101100: SHL,
+            0b10101010: OR,
+            0b10101101: SHR,
+            0b01101001: NOT,
+            0b10100100: MOD
         }
         try:
             op = ALU_branch_table[self.read_ram(self.pc)]
@@ -253,3 +274,5 @@ class CPU:
         value = self.read_reg(ramadr=self.pc+1)
         self.pc = value
         return self.RNOP(True)
+    def NOP(self):
+        return 0
