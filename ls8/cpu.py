@@ -10,7 +10,7 @@ class CPU:
         self.ram = [0] * 256
         self.reg = [0] * 8
         self.reg[7] = 0xF4
-        self.ram[0xF4] = 0xf4
+        self.ram[0xF4] = 0xF4
         self.pc = 0
         self.Running = True
         self.branch_table = {}
@@ -19,6 +19,8 @@ class CPU:
         self.branch_table[0b01000111] = self.PRN
         self.branch_table[0b01000101] = self.PUSH
         self.branch_table[0b01000110] = self.POP
+        self.branch_table[0b01010000] = self.CALL
+        self.branch_table[0b00010001] = self.RET
 
 
     def load(self):
@@ -72,10 +74,10 @@ class CPU:
         def DIV():
             self.reg[reg_a] /= self.reg[reg_b]
         ALU_branch_table = {
-            0b10100001: ADD,
-            0b10100011: SUB,
+            0b10100000: ADD,
+            0b10100001: SUB,
             0b10100010: MULT,
-            0b10100100: DIV,
+            0b10100011: DIV,
         }
         try:
             op = ALU_branch_table[self.read_ram(self.pc)]
@@ -111,24 +113,30 @@ class CPU:
         if verbose == True:
             print('Start --------------------')
             self.trace()
+            # x = []
+            # for i in self.ram:
+            #     x.append(hex(i))
+            # print(x)
         while self.Running:
             # self.trace()
             try:
-                a = copy.deepcopy(self.read_ram(self.pc))
-                a &= 0b00111111
-                # print(a, bin(a))
-                if a >= 0b100000:
+                a = copy.deepcopy(self.read_ram(self.pc)) 
+                a &= 0b00100000
+                a >>= 5
+                # print('a',a)
+                if a == 1:
                     ir = self.ALU
                     x,y = self.read_ram(self.pc+0b1),self.read_ram(self.pc+0b10)
                     # print(x,y)
                     numofoperands = ir(x,y)
-                elif a < 0b100000:
+                else:
+
                     n = self.read_ram(self.pc)
-                    # print(n)
+                    # print('n',n)
                     ir = self.branch_table[n]
                     numofoperands = ir()
-
                 self.pc += numofoperands + 0b1
+                # print(self.pc)
                 if verbose == True:
                     self.trace()
                     if self.Running == False:
@@ -136,15 +144,15 @@ class CPU:
             except KeyError:
                 print(f'Uknown Instruction: "{a,bin(a)}"')
                 sys.exit(2)
-    def RNOP(self):
-        # self.pc = 0
-        # print('rnop')
-        numofoperands = self.ram[self.pc] & 0b11000000
-
-        # print(numofoperands)
-        numofoperands >>= 6
-        # print(numofoperands)
-        return numofoperands
+    def RNOP(self, setPC = None):
+        if setPC == None:
+            numofoperands = self.read_ram(self.pc) 
+            numofoperands &= 0b11000000 
+            numofoperands >>= 6
+            return numofoperands
+        else:
+            return -1
+        
     def read_ram(self, address):
         return self.ram[address]
     
@@ -181,5 +189,24 @@ class CPU:
         self.write_reg(data, ramadr=self.pc+1)
         self.reg[7]+=1
         return self.RNOP()
-# 022
-#755
+    def push_value(self, value):
+        self.reg[7]-=1
+        address = self.reg[7]
+        self.write_ram(address,value)
+    def pop_value(self):
+        address = self.reg[7]
+        value = self.read_ram(address)
+        self.reg[7]+=1
+        return value
+    def CALL(self):
+        return_adr = self.pc+2
+        self.push_value(return_adr)
+        value = self.read_reg(ramadr=self.pc+1)
+        # print(value)
+        self.pc = value
+        # print(self.pc)
+        return self.RNOP(True)
+    def RET(self):
+        return_adr = self.pop_value()
+        self.pc=return_adr
+        return self.RNOP(True)
